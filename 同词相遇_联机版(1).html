@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>同词相遇 - 联机版</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+    color: #333;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    padding: 30px;
+  }
+  h1 { text-align: center; color: #667eea; margin-bottom: 8px; font-size: 28px; }
+  .subtitle { text-align: center; color: #888; margin-bottom: 24px; font-size: 14px; }
+
+  .room-panel {
+    background: #f5f7ff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .room-status {
+    text-align: center;
+    margin-bottom: 16px;
+    font-size: 15px;
+    color: #555;
+    min-height: 22px;
+    line-height: 1.5;
+  }
+  .room-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .room-input {
+    padding: 10px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    min-width: 200px;
+  }
+  .room-input:focus { border-color: #667eea; }
+  .btn {
+    padding: 10px 20px;
+    background: #667eea;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #5568d3; }
+  .btn.secondary {
+    background: #fff;
+    color: #667eea;
+    border: 2px solid #667eea;
+  }
+  .btn.secondary:hover { background: #f0f2ff; }
+  .btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #fff;
+  }
+
+  /* 信令服务器设置 */
+  .server-settings {
+    margin-top: 16px;
+    font-size: 13px;
+    color: #777;
+  }
+  .server-settings summary {
+    cursor: pointer;
+    color: #667eea;
+    user-select: none;
+    padding: 4px 0;
+  }
+  .server-settings summary:hover { text-decoration: underline; }
+  .settings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .settings-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: #888;
+  }
+  .settings-grid input[type="text"],
+  .settings-grid input[type="number"] {
+    padding: 8px 10px;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+  }
+  .settings-grid input:focus { border-color: #667eea; }
+  .settings-check {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px !important;
+    margin-top: 18px;
+  }
+  .settings-actions {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .cfg-tip { font-size: 12px; color: #888; min-height: 18px; }
+  .server-info {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin-top: 10px;
+    word-break: break-all;
+  }
+
+  .rules {
+    background: #f5f7ff;
+    border-left: 4px solid #667eea;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #555;
+  }
+
+  .stats {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    padding: 12px;
+    background: #fafbff;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: #666;
+    flex-wrap: wrap;
+  }
+  .stats b { color: #667eea; font-size: 16px; }
+
+  .rounds-history {
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .round-item {
+    background: #f8f9ff;
+    border-radius: 10px;
+    padding: 14px 20px;
+    animation: fadeIn 0.3s ease;
+  }
+  .round-title {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .round-words {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  .round-words .meet {
+    color: #d35400;
+    background: #ffeaa7;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: bold;
+    display: inline-block;
+  }
+  .round-words .p1-label, .round-words .p2-label {
+    font-size: 12px;
+    color: #999;
+    font-weight: normal;
+    margin-bottom: 4px;
+  }
+  .word-text { word-break: break-word; }
+
+  .current-round {
+    background: #f0f2ff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .current-round h3 {
+    text-align: center;
+    color: #667eea;
+    margin-bottom: 16px;
+    font-size: 16px;
+  }
+  .input-area { display: flex; gap: 10px; margin-bottom: 12px; }
+  #wordInput {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  #wordInput:focus { border-color: #667eea; }
+  #wordInput:disabled { background: #f5f5f5; cursor: not-allowed; }
+  #submitBtn {
+    padding: 12px 24px;
+    background: #667eea;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #submitBtn:hover { background: #5568d3; }
+  #submitBtn:disabled { background: #ccc; cursor: not-allowed; }
+  .wait-tip {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    min-height: 20px;
+    line-height: 1.5;
+  }
+
+  .meet-result {
+    text-align: center;
+    padding: 20px;
+    background: linear-gradient(135deg, #ffeaa7, #fdcb6e);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    display: none;
+    animation: popIn 0.5s ease;
+  }
+  @keyframes popIn {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .meet-result h2 { color: #d35400; margin-bottom: 8px; }
+  .meet-result p { color: #8b4513; margin-bottom: 4px; }
+
+  .fail-result {
+    text-align: center;
+    padding: 20px;
+    background: #f5f5f5;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .fail-result h2 { color: #666; margin-bottom: 8px; }
+  .fail-result p { color: #888; }
+
+  .btn-group { display: flex; justify-content: center; gap: 12px; }
+  .reset-btn {
+    padding: 10px 20px;
+    background: #fff;
+    color: #667eea;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+  }
+  .reset-btn:hover { background: #667eea; color: #fff; }
+  .reset-btn:disabled {
+    background: #f5f5f5;
+    color: #aaa;
+    border-color: #ddd;
+    cursor: not-allowed;
+  }
+
+  .game-area { display: none; }
+  .game-area.show { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 600px) {
+    .container { padding: 20px; }
+    .room-controls { flex-direction: column; }
+    .room-input { width: 100%; }
+    .stats { gap: 15px; font-size: 13px; }
+    .settings-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>同词相遇</h1>
+  <p class="subtitle">双人远程联机 · 词语联想相遇</p>
+
+  <div class="room-panel">
+    <div class="room-status" id="roomStatus">请创建房间或加入朋友的房间</div>
+    <div class="room-controls">
+      <button class="btn" id="createBtn">创建房间</button>
+      <input type="text" class="room-input" id="roomIdInput" placeholder="输入房间号">
+      <button class="btn secondary" id="joinBtn">加入房间</button>
+      <button class="btn secondary" id="copyBtn" style="display:none;">复制房间号</button>
+    </div>
+
+    <div class="server-info" id="serverInfo"></div>
+
+    <details class="server-settings" id="serverSettings">
+      <summary>连不上？点此配置信令服务器</summary>
+      <div class="settings-grid">
+        <label>Host（留空使用官方公共云）
+          <input type="text" id="cfgHost" placeholder="例如 your-server.com">
+        </label>
+        <label>Port
+          <input type="number" id="cfgPort" placeholder="443">
+        </label>
+        <label>Path
+          <input type="text" id="cfgPath" placeholder="/">
+        </label>
+        <label class="settings-check">
+          <input type="checkbox" id="cfgSecure"> 使用安全连接（HTTPS/WSS）
+        </label>
+      </div>
+      <div class="settings-actions">
+        <button class="btn secondary" id="cfgSave" type="button">保存设置</button>
+        <button class="btn secondary" id="cfgClear" type="button">恢复默认</button>
+        <span class="cfg-tip" id="cfgTip"></span>
+      </div>
+    </details>
+  </div>
+
+  <div class="game-area" id="gameArea">
+    <div class="rules">
+      <strong>游戏规则：</strong>每轮双方同时输入一个联想词，都提交后同时揭晓。说出同一个词即为相遇成功！最多30轮，未相遇则失败。
+    </div>
+
+    <div class="stats">
+      <span>当前：第 <b id="currentRound">1</b> 轮</span>
+      <span>已进行：<b id="roundCount">0</b> 轮</span>
+      <span>上限：<b>30</b> 轮</span>
+    </div>
+
+    <div class="meet-result" id="meetResult">
+      <h2>🎉 相遇成功！</h2>
+      <p id="meetWord"></p>
+      <p id="meetSteps" style="font-size:13px;"></p>
+    </div>
+
+    <div class="fail-result" id="failResult">
+      <h2>本轮未相遇</h2>
+      <p>30轮已用完，看看你们的词路差在哪里吧</p>
+    </div>
+
+    <div class="rounds-history" id="roundsHistory"></div>
+
+    <div class="current-round" id="currentRoundBox">
+      <h3 id="roundTitle">第 1 轮 · 请输入你的词语</h3>
+      <div class="input-area">
+        <input type="text" id="wordInput" placeholder="输入一个联想词" autocomplete="off" maxlength="40">
+        <button id="submitBtn">提交</button>
+      </div>
+      <div class="wait-tip" id="waitTip"></div>
+    </div>
+
+    <div class="btn-group">
+      <button class="reset-btn" id="resetBtn">重新开始</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const MAX_ROUNDS = 30;
+const MAX_WORD_LEN = 20;
+const CONNECT_TIMEOUT = 12000;
+const START_TIMEOUT = 8000;
+const P2P_CONNECT_TIMEOUT = 15000;  // 【新增】P2P连接建立超时（加入方）
+const CFG_KEY = 'sameword_peer_cfg_v1';
+
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject'
+  },
+  {
+    urls: 'turn:eu-0.turn.peerjs.com:3478',
+    username: 'peerjs',
+    credential: 'peerjsp'
+  }
+];
+
+let peer = null;
+let connection = null;
+let myPlayer = 0;
+let sessionId = '';
+let currentRound = 1;
+let rounds = [];
+let mySubmitted = false;
+let gameOver = false;
+let nextRoundTimer = null;
+let startTimer = null;
+let connectTimer = null;
+let p2pConnectTimer = null;  // 【新增】P2P连接超时定时器
+let connected = false;
+
+const roomStatus = document.getElementById('roomStatus');
+const createBtn = document.getElementById('createBtn');
+const joinBtn = document.getElementById('joinBtn');
+const copyBtn = document.getElementById('copyBtn');
+const roomIdInput = document.getElementById('roomIdInput');
+const gameArea = document.getElementById('gameArea');
+const serverInfo = document.getElementById('serverInfo');
+
+const wordInput = document.getElementById('wordInput');
+const submitBtn = document.getElementById('submitBtn');
+const roundTitle = document.getElementById('roundTitle');
+const waitTip = document.getElementById('waitTip');
+const roundsHistory = document.getElementById('roundsHistory');
+const currentRoundBox = document.getElementById('currentRoundBox');
+const meetResult = document.getElementById('meetResult');
+const failResult = document.getElementById('failResult');
+const meetWord = document.getElementById('meetWord');
+const meetSteps = document.getElementById('meetSteps');
+const currentRoundEl = document.getElementById('currentRound');
+const roundCountEl = document.getElementById('roundCount');
+const resetBtn = document.getElementById('resetBtn');
+
+const cfgHost = document.getElementById('cfgHost');
+const cfgPort = document.getElementById('cfgPort');
+const cfgPath = document.getElementById('cfgPath');
+const cfgSecure = document.getElementById('cfgSecure');
+const cfgSave = document.getElementById('cfgSave');
+const cfgClear = document.getElementById('cfgClear');
+const cfgTip = document.getElementById('cfgTip');
+
+// 【新增】检测是否在file://协议下打开
+if (location.protocol.startsWith('file:')) {
+  roomStatus.textContent = '警告：请勿直接双击打开此文件！WebRTC在file://协议下无法工作。请使用本地服务器（如python3 -m http.server）或通过GitHub Pages/Netlify等在线部署后使用。';
+  createBtn.disabled = true;
+  joinBtn.disabled = true;
+}
+
+function loadPeerCfg() {
+  try {
+    const raw = localStorage.getItem(CFG_KEY);
+    const cfg = raw ? JSON.parse(raw) : null;
+    return cfg && typeof cfg === 'object' ? cfg : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function savePeerCfg(cfg) {
+  try {
+    if (cfg && cfg.host) localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+    else localStorage.removeItem(CFG_KEY);
+  } catch (e) {}
+}
+
+function buildPeerOptions() {
+  const cfg = loadPeerCfg();
+  const opts = {
+    config: {
+      iceServers: ICE_SERVERS,
+      iceTransportPolicy: 'all'
+    }
+  };
+  if (cfg.host) {
+    opts.host = cfg.host;
+    const port = Number(cfg.port);
+    if (Number.isFinite(port) && port > 0) opts.port = port;
+    if (cfg.path) opts.path = cfg.path;
+    opts.secure = !!cfg.secure;
+  }
+  return opts;
+}
+
+function describeServer() {
+  const cfg = loadPeerCfg();
+  if (!cfg.host) return '信令服务器：PeerJS 官方公共云（0.peerjs.com）';
+  const proto = cfg.secure ? 'wss' : 'ws';
+  const port = cfg.port ? Number(cfg.port) : (cfg.secure ? 443 : 80);
+  const path = cfg.path || '/';
+  return `信令服务器：${proto}://${cfg.host}:${port}${path}`;
+}
+
+function refreshServerInfo() {
+  serverInfo.textContent = describeServer();
+}
+
+function fillCfgForm() {
+  const cfg = loadPeerCfg();
+  cfgHost.value = cfg.host || '';
+  cfgPort.value = cfg.port || '';
+  cfgPath.value = cfg.path || '';
+  cfgSecure.checked = !!cfg.secure;
+}
+
+cfgSave.addEventListener('click', () => {
+  const host = cfgHost.value.trim();
+  if (!host) {
+    cfgTip.textContent = 'Host 不能为空；若要用官方云请点"恢复默认"';
+    return;
+  }
+  const cfg = { host };
+  const port = parseInt(cfgPort.value, 10);
+  if (Number.isFinite(port) && port > 0) cfg.port = port;
+  const path = cfgPath.value.trim();
+  if (path) cfg.path = path.startsWith('/') ? path : '/' + path;
+  cfg.secure = cfgSecure.checked;
+
+  savePeerCfg(cfg);
+  refreshServerInfo();
+  cfgTip.textContent = '已保存。请刷新页面后重新创建 / 加入房间';
+
+  cleanupPeer();
+  roomStatus.textContent = '服务器设置已更新，请刷新页面后重新创建 / 加入房间';
+  createBtn.disabled = false;
+  joinBtn.disabled = false;
+  copyBtn.style.display = 'none';
+  roomIdInput.value = '';
+});
+
+cfgClear.addEventListener('click', () => {
+  savePeerCfg({});
+  fillCfgForm();
+  refreshServerInfo();
+  cfgTip.textContent = '已恢复为官方公共云。请刷新页面后重新创建 / 加入房间';
+
+  cleanupPeer();
+  roomStatus.textContent = '已恢复默认服务器，请刷新页面后重新创建 / 加入房间';
+  createBtn.disabled = false;
+  joinBtn.disabled = false;
+  copyBtn.style.display = 'none';
+  roomIdInput.value = '';
+});
+
+function cleanupPeer() {
+  connected = false;
+  if (nextRoundTimer) { clearTimeout(nextRoundTimer); nextRoundTimer = null; }
+  if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+  if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+  if (p2pConnectTimer) { clearTimeout(p2pConnectTimer); p2pConnectTimer = null; }  // 【新增】清理P2P定时器
+  try { if (connection) connection.close(); } catch (e) {}
+  try { if (peer) peer.destroy(); } catch (e) {}
+  connection = null;
+  peer = null;
+}
+
+function makeSessionId() {
+  return Date.now().toString(36) + '-' + myPlayer + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+function parseSessionTs(id) {
+  if (typeof id !== 'string') return null;
+  const ts = parseInt(id.split('-')[0], 36);
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function compareSession(a, b) {
+  const ta = parseSessionTs(a);
+  const tb = parseSessionTs(b);
+  if (ta === null) return -1;
+  if (tb === null) return 1;
+  if (ta !== tb) return ta - tb;
+  if (a === b) return 0;
+  return a > b ? 1 : -1;
+}
+
+function normalizeWord(w) {
+  if (typeof w !== 'string') return '';
+  w = w.trim().replace(/\s+/g, ' ');
+  if (!w) return '';
+  if ([...w].length > MAX_WORD_LEN) return '';
+  return w;
+}
+
+function send(data) {
+  if (!connection || !connection.open) return false;
+  try {
+    connection.send(data);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function friendlyError(type) {
+  const map = {
+    'peer-unavailable': '找不到该房间：房间号可能错误，或对方已离线，或双方使用了不同的信令服务器',
+    'network': '网络错误，无法连接信令服务器。可能是网络限制，建议自建信令服务器',
+    'server-error': '信令服务器内部错误，请稍后重试或更换服务器',
+    'socket-error': '与信令服务器的连接出错，请检查网络',
+    'socket-closed': '与信令服务器的连接已关闭，请刷新重试',
+    'ssl-unavailable': 'HTTPS 页面无法连接不安全的信令服务器，请为服务器配置 wss，或勾选"使用安全连接"',
+    'browser-incompatible': '当前浏览器不支持 WebRTC，请更换 Chrome / Edge / Safari 新版本',
+    'invalid-id': '房间号格式无效',
+    'invalid-key': '信令服务器 API Key 无效',
+    'unavailable-id': '该房间号已被占用，请重试',
+    'webrtc': 'WebRTC 运行错误，请检查浏览器权限',
+    'negotiation-failed': '连接协商失败：NAT 穿透不成功，建议更换网络，或配置可用的 TURN 服务器',
+    'connection-failed': '连接失败：NAT 穿透不成功或对方网络受限，建议更换网络环境重试'
+  };
+  return map[type] || ('连接错误：' + type);
+}
+
+function createPeerInstance() {
+  const opts = buildPeerOptions();
+  try {
+    return new Peer(opts);
+  } catch (e) {
+    return null;
+  }
+}
+
+// 【修复1】创建房间按钮
+createBtn.addEventListener('click', () => {
+  createBtn.disabled = true;
+  joinBtn.disabled = true;
+  roomStatus.textContent = '正在创建房间...';
+  myPlayer = 1;
+  peer = createPeerInstance();
+  if (!peer) {
+    roomStatus.textContent = '创建失败，请刷新页面重试';
+    createBtn.disabled = false;
+    joinBtn.disabled = false;
+    return;
+  }
+  peer.on('open', (id) => {
+    roomStatus.textContent = '房间已创建，把房间号发给朋友';
+    roomIdInput.value = id;
+    copyBtn.style.display = 'inline-block';
+  });
+  peer.on('connection', (conn) => {
+    if (connection) {
+      try { conn.close(); } catch (e) {}
+      return;
+    }
+    connection = conn;
+    setupConnection(conn);
+  });
+  peer.on('error', (err) => {
+    const type = err && err.type ? err.type : '未知错误';
+    roomStatus.textContent = friendlyError(type);
+    createBtn.disabled = false;
+    joinBtn.disabled = false;
+  });
+  peer.on('disconnected', () => {
+    roomStatus.textContent = '与信令服务器断开，正在尝试重连...';
+    try { peer.reconnect(); } catch (e) {}
+  });
+  peer.on('close', () => {
+    if (!connected) {
+      roomStatus.textContent = '连接已关闭，请刷新页面后重试';
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+    }
+  });
+});
+
+// 【修复2】加入房间按钮 - 增加P2P连接超时
+joinBtn.addEventListener('click', () => {
+  const roomId = roomIdInput.value.trim();
+  if (!roomId) {
+    roomStatus.textContent = '请输入房间号';
+    return;
+  }
+  createBtn.disabled = true;
+  joinBtn.disabled = true;
+  roomStatus.textContent = '正在连接...';
+  myPlayer = 2;
+  peer = createPeerInstance();
+  if (!peer) {
+    roomStatus.textContent = '连接失败，请刷新页面重试';
+    createBtn.disabled = false;
+    joinBtn.disabled = false;
+    return;
+  }
+  peer.on('open', () => {
+    try {
+      connection = peer.connect(roomId, { reliable: true });
+    } catch (e) {
+      roomStatus.textContent = '连接失败，请检查房间号';
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+      return;
+    }
+    // 【新增】为加入方设置P2P连接超时
+    p2pConnectTimer = setTimeout(() => {
+      p2pConnectTimer = null;
+      if (!connection || connection.open) return;
+      try { connection.close(); } catch (e) {}
+      roomStatus.textContent = '连接超时：对方可能未创建房间或网络受限，请检查房间号后重试';
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+    }, P2P_CONNECT_TIMEOUT);
+    
+    setupConnection(connection);
+  });
+  peer.on('error', (err) => {
+    const type = err && err.type ? err.type : '未知错误';
+    roomStatus.textContent = friendlyError(type);
+    if (type === 'peer-unavailable' || type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'browser-incompatible') {
+      if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+      if (p2pConnectTimer) { clearTimeout(p2pConnectTimer); p2pConnectTimer = null; }
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+    }
+  });
+  peer.on('disconnected', () => {
+    roomStatus.textContent = '与信令服务器断开，正在尝试重连...';
+    try { peer.reconnect(); } catch (e) {}
+  });
+});
+
+copyBtn.addEventListener('click', () => {
+  const text = roomIdInput.value;
+  if (!text) return;
+  const done = () => {
+    copyBtn.textContent = '已复制';
+    setTimeout(() => { copyBtn.textContent = '复制房间号'; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      roomIdInput.select();
+      copyBtn.textContent = '请手动复制';
+      setTimeout(() => { copyBtn.textContent = '复制房间号'; }, 1500);
+    });
+  } else {
+    roomIdInput.select();
+    copyBtn.textContent = '请手动复制';
+    setTimeout(() => { copyBtn.textContent = '复制房间号'; }, 1500);
+  }
+});
+
+// 【修复3】setupConnection - 处理conn.open已为true的竞态条件
+function setupConnection(conn) {
+  if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+  connectTimer = setTimeout(() => {
+    connectTimer = null;
+    if (conn.open) return;  // 连接已建立，正常流程会处理
+    try { conn.close(); } catch (e) {}
+    if (myPlayer === 1) {
+      if (connection === conn) connection = null;
+      roomStatus.textContent = '有人尝试连接但未能建立，可继续等待其他人加入';
+      createBtn.disabled = true;
+      joinBtn.disabled = true;
+    } else {
+      roomStatus.textContent = '连接超时：可能是网络限制或 NAT 穿透失败。建议更换网络，或在"信令服务器设置"里配置自建服务器';
+      createBtn.disabled = false;
+      joinBtn.disabled = false;
+    }
+  }, CONNECT_TIMEOUT);
+  conn.on('open', () => {
+    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+    // 【新增】清理P2P连接超时
+    if (p2pConnectTimer) { clearTimeout(p2pConnectTimer); p2pConnectTimer = null; }
+    connected = true;
+    if (myPlayer === 1) {
+      const newId = makeSessionId();
+      send({ type: 'start', sessionId: newId });
+      roomStatus.textContent = '对方已加入，游戏开始！';
+      gameArea.classList.add('show');
+      startGame(newId);
+    } else {
+      roomStatus.textContent = '已连接，正在同步房间信息...';
+      if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+      startTimer = setTimeout(() => {
+        startTimer = null;
+        if (!sessionId) {
+          roomStatus.textContent = '同步失败：长时间未收到开局信息，请重新加入房间';
+          createBtn.disabled = false;
+          joinBtn.disabled = false;
+        }
+      }, START_TIMEOUT);
+    }
+  });
+  // 【新增】同步检查：如果conn.open已经为true（PeerJS某些版本中connection事件触发时连接已建立）
+  if (conn.open) {
+    // 清除超时定时器
+    if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+    if (p2pConnectTimer) { clearTimeout(p2pConnectTimer); p2pConnectTimer = null; }
+    connected = true;
+    if (myPlayer === 1) {
+      const newId = makeSessionId();
+      send({ type: 'start', sessionId: newId });
+      roomStatus.textContent = '对方已加入，游戏开始！';
+      gameArea.classList.add('show');
+      startGame(newId);
+    } else {
+      roomStatus.textContent = '已连接，正在同步房间信息...';
+      if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+      startTimer = setTimeout(() => {
+        startTimer = null;
+        if (!sessionId) {
+          roomStatus.textContent = '同步失败：长时间未收到开局信息，请重新加入房间';
+          createBtn.disabled = false;
+          joinBtn.disabled = false;
+        }
+      }, START_TIMEOUT);
+    }
+  }
+  conn.on('data', handleMessage);
+  conn.on('close', onDisconnect);
+  conn.on('error', onDisconnect);
+}
+
+function onDisconnect() {
+  if (!connected) return;
+  connected = false;
+  if (nextRoundTimer) { clearTimeout(nextRoundTimer); nextRoundTimer = null; }
+  if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+  if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+  if (p2pConnectTimer) { clearTimeout(p2pConnectTimer); p2pConnectTimer = null; }
+  roomStatus.textContent = '对方已断开连接';
+  wordInput.disabled = true;
+  submitBtn.disabled = true;
+  resetBtn.disabled = true;
+  waitTip.textContent = '连接已断开';
+}
+
+function handleMessage(data) {
+  if (!data || typeof data !== 'object') return;
+  switch (data.type) {
+    case 'start':
+      if (myPlayer !== 2) return;
+      if (sessionId) return;
+      if (typeof data.sessionId !== 'string' || !data.sessionId) return;
+      if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+      roomStatus.textContent = '连接成功，游戏开始！';
+      gameArea.classList.add('show');
+      startGame(data.sessionId);
+      break;
+    case 'submit':
+      if (typeof data.sessionId !== 'string' || data.sessionId !== sessionId) return;
+      if (!Number.isInteger(data.round)) return;
+      if (typeof data.word !== 'string') return;
+      handleRemoteSubmit(data.round, data.word);
+      break;
+    case 'reset':
+      if (typeof data.sessionId !== 'string' || !data.sessionId) return;
+      handleRemoteReset(data.sessionId);
+      break;
+    default:
+      break;
+  }
+}
+
+function handleRemoteSubmit(round, rawWord) {
+  if (gameOver || !sessionId) return;
+  if (round !== currentRound) return;
+  const r = rounds[currentRound - 1];
+  if (!r || r.revealed) return;
+  const word = normalizeWord(rawWord);
+  if (!word) return;
+  if (myPlayer === 1) {
+    if (r.p2) return;
+    r.p2 = word;
+  } else {
+    if (r.p1) return;
+    r.p1 = word;
+  }
+  if (!mySubmitted && !r.revealed) {
+    waitTip.textContent = '对方已提交，就差你了';
+  }
+  checkRoundReveal();
+}
+
+function handleRemoteReset(remoteId) {
+  if (!connected) return;
+  if (remoteId === sessionId) return;
+  if (compareSession(remoteId, sessionId) > 0) {
+    startGame(remoteId);
+  } else {
+    send({ type: 'reset', sessionId: sessionId });
+  }
+}
+
+function submitWord() {
+  if (gameOver || mySubmitted) return;
+  if (!connected || !connection || !connection.open) {
+    waitTip.textContent = '连接已断开，无法提交';
+    return;
+  }
+  const word = normalizeWord(wordInput.value);
+  if (!word) {
+    waitTip.textContent = `请输入 1-${MAX_WORD_LEN} 个字的词语`;
+    return;
+  }
+  for (let i = 0; i < rounds.length; i++) {
+    const r = rounds[i];
+    if (!r) continue;
+    const myWord = myPlayer === 1 ? r.p1 : r.p2;
+    if (myWord && myWord === word) {
+      waitTip.textContent = '这个词你之前用过了，换一个';
+      return;
+    }
+  }
+  const r = rounds[currentRound - 1];
+  if (!r || r.revealed) return;
+  mySubmitted = true;
+  wordInput.disabled = true;
+  submitBtn.disabled = true;
+  waitTip.textContent = '已提交，等待对方...';
+  if (myPlayer === 1) r.p1 = word;
+  else r.p2 = word;
+  const ok = send({
+    type: 'submit',
+    sessionId: sessionId,
+    round: currentRound,
+    word: word
+  });
+  if (!ok) {
+    mySubmitted = false;
+    wordInput.disabled = false;
+    submitBtn.disabled = false;
+    if (myPlayer === 1) r.p1 = '';
+    else r.p2 = '';
+    waitTip.textContent = '发送失败，请重试';
+    return;
+  }
+  checkRoundReveal();
+}
+
+function checkRoundReveal() {
+  const r = rounds[currentRound - 1];
+  if (!r || r.revealed) return;
+  if (!r.p1 || !r.p2) return;
+  r.revealed = true;
+  renderRound(currentRound - 1);
+  updateStats();
+  if (r.p1 === r.p2) {
+    gameOver = true;
+    meetResult.style.display = 'block';
+    meetWord.textContent = `相遇词：「${r.p1}」`;
+    meetSteps.textContent = `第 ${currentRound} 轮成功相遇`;
+    currentRoundBox.style.display = 'none';
+    waitTip.textContent = '';
+    return;
+  }
+  if (currentRound >= MAX_ROUNDS) {
+    gameOver = true;
+    failResult.style.display = 'block';
+    currentRoundBox.style.display = 'none';
+    waitTip.textContent = '';
+    return;
+  }
+  if (nextRoundTimer) { clearTimeout(nextRoundTimer); nextRoundTimer = null; }
+  nextRoundTimer = setTimeout(() => {
+    nextRoundTimer = null;
+    if (gameOver || !connected) return;
+    currentRound++;
+    mySubmitted = false;
+    rounds.push({ p1: '', p2: '', revealed: false });
+    roundTitle.textContent = `第 ${currentRound} 轮 · 请输入你的词语`;
+    wordInput.value = '';
+    wordInput.disabled = false;
+    submitBtn.disabled = false;
+    waitTip.textContent = '';
+    wordInput.focus();
+    updateStats();
+  }, 800);
+}
+
+function renderRound(index) {
+  const r = rounds[index];
+  if (!r) return;
+  const roundNum = index + 1;
+  if (document.getElementById(`round-${roundNum}`)) return;
+  const isMeet = r.p1 === r.p2;
+  const wrap = document.createElement('div');
+  wrap.className = 'round-item';
+  wrap.id = `round-${roundNum}`;
+  const title = document.createElement('div');
+  title.className = 'round-title';
+  title.textContent = `第 ${roundNum} 轮`;
+  const words = document.createElement('div');
+  words.className = 'round-words';
+  const left = document.createElement('div');
+  const leftLabel = document.createElement('div');
+  leftLabel.className = 'p1-label';
+  leftLabel.textContent = '玩家 1';
+  const leftWord = document.createElement('div');
+  leftWord.className = isMeet ? 'meet word-text' : 'word-text';
+  leftWord.textContent = r.p1;
+  left.appendChild(leftLabel);
+  left.appendChild(leftWord);
+  const right = document.createElement('div');
+  const rightLabel = document.createElement('div');
+  rightLabel.className = 'p2-label';
+  rightLabel.textContent = '玩家 2';
+  const rightWord = document.createElement('div');
+  rightWord.className = isMeet ? 'meet word-text' : 'word-text';
+  rightWord.textContent = r.p2;
+  right.appendChild(rightLabel);
+  right.appendChild(rightWord);
+  words.appendChild(left);
+  words.appendChild(right);
+  wrap.appendChild(title);
+  wrap.appendChild(words);
+  roundsHistory.appendChild(wrap);
+  if (wrap.scrollIntoView) {
+    wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function updateStats() {
+  currentRoundEl.textContent = currentRound;
+  roundCountEl.textContent = rounds.filter(r => r && r.revealed).length;
+}
+
+function startGame(newSessionId) {
+  if (nextRoundTimer) { clearTimeout(nextRoundTimer); nextRoundTimer = null; }
+  if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+  if (connectTimer) { clearTimeout(connectTimer); connectTimer = null; }
+  if (p2pConnectTimer) { clearTimeout(p2pConnectTimer); p2pConnectTimer = null; }
+  sessionId = newSessionId;
+  currentRound = 1;
+  rounds = [{ p1: '', p2: '', revealed: false }];
+  mySubmitted = false;
+  gameOver = false;
+  roundsHistory.innerHTML = '';
+  meetResult.style.display = 'none';
+  failResult.style.display = 'none';
+  currentRoundBox.style.display = 'block';
+  roundTitle.textContent = '第 1 轮 · 请输入你的词语';
+  wordInput.value = '';
+  wordInput.disabled = false;
+  submitBtn.disabled = false;
+  resetBtn.disabled = false;
+  waitTip.textContent = '';
+  updateStats();
+  wordInput.focus();
+}
+
+function resetGame() {
+  if (!connected || !connection || !connection.open) {
+    waitTip.textContent = '连接已断开，无法重新开始';
+    return;
+  }
+  const newId = makeSessionId();
+  send({ type: 'reset', sessionId: newId });
+  startGame(newId);
+}
+
+fillCfgForm();
+refreshServerInfo();
+
+submitBtn.addEventListener('click', submitWord);
+wordInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) {
+    submitWord();
+  }
+});
+resetBtn.addEventListener('click', resetGame);
+window.addEventListener('beforeunload', () => {
+  cleanupPeer();
+});
+</script>
+</body>
+</html>
